@@ -1,0 +1,52 @@
+{
+  "name": "browser-bridge-mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Give Claude Code direct access to your browser - console, network, errors, storage, DOM and more",
+  "author": "Mukesh Bishnoi <mukeshb.work@gmail.com>",
+  "bin": {
+    "browser-bridge-mcp": "./bin/cli.mjs"
+  },
+  "main": "./src/server.mjs",
+  "exports": {
+    ".": "./src/server.mjs",
+    "./next": "./next.mjs",
+    "./vite": "./vite.mjs",
+    "./middleware": "./middleware.mjs",
+    "./client": "./src/client.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "next.mjs",
+    "vite.mjs",
+    "middleware.mjs"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "ws": "^8.18.0",
+    "zod": "^3.24.0"
+  },
+  "keywords": [
+    "mcp",
+    "claude",
+    "claude-code",
+    "browser",
+    "devtools",
+    "debugging",
+    "console",
+    "network"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mukeshblackhat/browser-bridge-mcp.git"
+  },
+  "homepage": "https://github.com/mukeshblackhat/browser-bridge-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/mukeshblackhat/browser-bridge-mcp/issues"
+  }
+}
