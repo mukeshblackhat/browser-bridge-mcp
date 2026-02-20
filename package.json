@@ -1,11 +1,14 @@
 {
   "name": "browser-bridge-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Give Claude Code direct access to your browser - console, network, errors, storage, DOM and more",
   "author": "Mukesh Bishnoi <mukeshb.work@gmail.com>",
   "bin": {
     "browser-bridge-mcp": "./bin/cli.mjs"
+  },
+  "scripts": {
+    "postinstall": "node bin/postinstall.mjs"
   },
   "main": "./src/server.mjs",
   "exports": {
