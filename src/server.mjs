@@ -141,6 +141,14 @@ const httpServer = createServer((req, res) => {
   }
 });
 
+httpServer.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    process.stderr.write(`[browser-bridge] HTTP port ${HTTP_PORT} in use — client.js serving disabled (MCP still works)\n`);
+  } else {
+    process.stderr.write(`[browser-bridge] HTTP server error: ${err.message}\n`);
+  }
+});
+
 httpServer.listen(HTTP_PORT, "127.0.0.1", () => {
   process.stderr.write(`[browser-bridge] HTTP server serving client.js on http://127.0.0.1:${HTTP_PORT}/client.js\n`);
 });
@@ -150,6 +158,14 @@ httpServer.listen(HTTP_PORT, "127.0.0.1", () => {
 // ---------------------------------------------------------------------------
 
 const wss = new WebSocketServer({ port: WS_PORT, host: "127.0.0.1" });
+
+wss.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    process.stderr.write(`[browser-bridge] FATAL: WebSocket port ${WS_PORT} in use. Kill the other process or set BROWSER_BRIDGE_PORT.\n`);
+    process.exit(1);
+  }
+  process.stderr.write(`[browser-bridge] WebSocket error: ${err.message}\n`);
+});
 
 // Log to stderr so it doesn't interfere with MCP stdio
 process.stderr.write(`[browser-bridge] WebSocket server listening on ws://127.0.0.1:${WS_PORT}\n`);

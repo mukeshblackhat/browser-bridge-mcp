@@ -1,6 +1,6 @@
 {
   "name": "browser-bridge-mcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "Give Claude Code direct access to your browser - console, network, errors, storage, DOM and more",
   "author": "Mukesh Bishnoi <mukeshb.work@gmail.com>",
