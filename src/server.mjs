@@ -31,10 +31,15 @@ import { readFileSync } from "fs";
 // Configuration
 // ---------------------------------------------------------------------------
 
-const WS_PORT = parseInt(process.env.BROWSER_BRIDGE_PORT || "8089", 10);
-const HTTP_PORT = parseInt(process.env.BROWSER_BRIDGE_HTTP_PORT || "8090", 10);
+const WS_PORT_START = parseInt(process.env.BROWSER_BRIDGE_PORT || "8089", 10);
+const HTTP_PORT_START = parseInt(process.env.BROWSER_BRIDGE_HTTP_PORT || "8090", 10);
+const PORT_RANGE = 10; // try up to 10 consecutive ports
 const MAX_BUFFER = 2000; // max items to keep in each buffer
 const QUERY_TIMEOUT_MS = 5000;
+
+// Actual ports (set after binding)
+let wsPort = null;
+let httpPort = null;
 
 // ---------------------------------------------------------------------------
 // State - buffered events from browser
@@ -141,34 +146,70 @@ const httpServer = createServer((req, res) => {
   }
 });
 
-httpServer.on("error", (err) => {
-  if (err.code === "EADDRINUSE") {
-    process.stderr.write(`[browser-bridge] HTTP port ${HTTP_PORT} in use — client.js serving disabled (MCP still works)\n`);
-  } else {
-    process.stderr.write(`[browser-bridge] HTTP server error: ${err.message}\n`);
-  }
-});
-
-httpServer.listen(HTTP_PORT, "127.0.0.1", () => {
-  process.stderr.write(`[browser-bridge] HTTP server serving client.js on http://127.0.0.1:${HTTP_PORT}/client.js\n`);
-});
-
 // ---------------------------------------------------------------------------
-// WebSocket Server - receives data from browser
+// Port binding helpers — try a range of ports to avoid EADDRINUSE
 // ---------------------------------------------------------------------------
 
-const wss = new WebSocketServer({ port: WS_PORT, host: "127.0.0.1" });
+function tryListen(server, startPort, host) {
+  return new Promise((resolve, reject) => {
+    let port = startPort;
+    const attempt = () => {
+      server.once("error", (err) => {
+        if (err.code === "EADDRINUSE" && port < startPort + PORT_RANGE - 1) {
+          port++;
+          attempt();
+        } else if (err.code === "EADDRINUSE") {
+          reject(new Error(`All ports ${startPort}-${port} in use`));
+        } else {
+          reject(err);
+        }
+      });
+      server.listen(port, host, () => resolve(port));
+    };
+    attempt();
+  });
+}
 
-wss.on("error", (err) => {
-  if (err.code === "EADDRINUSE") {
-    process.stderr.write(`[browser-bridge] FATAL: WebSocket port ${WS_PORT} in use. Kill the other process or set BROWSER_BRIDGE_PORT.\n`);
-    process.exit(1);
-  }
-  process.stderr.write(`[browser-bridge] WebSocket error: ${err.message}\n`);
-});
+function tryListenWss(startPort, host) {
+  return new Promise((resolve, reject) => {
+    let port = startPort;
+    const attempt = () => {
+      const wss = new WebSocketServer({ port, host });
+      wss.on("error", (err) => {
+        if (err.code === "EADDRINUSE" && port < startPort + PORT_RANGE - 1) {
+          port++;
+          attempt();
+        } else if (err.code === "EADDRINUSE") {
+          reject(new Error(`All ports ${startPort}-${port} in use`));
+        } else {
+          reject(err);
+        }
+      });
+      wss.on("listening", () => resolve({ wss, port }));
+    };
+    attempt();
+  });
+}
 
-// Log to stderr so it doesn't interfere with MCP stdio
-process.stderr.write(`[browser-bridge] WebSocket server listening on ws://127.0.0.1:${WS_PORT}\n`);
+// Start WebSocket server
+let wss;
+try {
+  const result = await tryListenWss(WS_PORT_START, "127.0.0.1");
+  wss = result.wss;
+  wsPort = result.port;
+  process.stderr.write(`[browser-bridge] WebSocket server listening on ws://127.0.0.1:${wsPort}\n`);
+} catch (err) {
+  process.stderr.write(`[browser-bridge] FATAL: Could not bind WebSocket — ${err.message}\n`);
+  process.exit(1);
+}
+
+// Start HTTP server (non-fatal if it fails)
+try {
+  httpPort = await tryListen(httpServer, HTTP_PORT_START, "127.0.0.1");
+  process.stderr.write(`[browser-bridge] HTTP server serving client.js on http://127.0.0.1:${httpPort}/client.js\n`);
+} catch (err) {
+  process.stderr.write(`[browser-bridge] HTTP server disabled — ${err.message} (MCP still works)\n`);
+}
 
 /**
  * Notify a browser tab whether it is the focused tab.

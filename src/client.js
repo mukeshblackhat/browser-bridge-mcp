@@ -35,8 +35,8 @@
     return;
   }
 
-  const PORT = window.__BRIDGE_PORT || 8089;
-  const WS_URL = `ws://127.0.0.1:${PORT}`;
+  const PORT_START = window.__BRIDGE_PORT || 8089;
+  const PORT_RANGE = 10; // scan ports 8089-8098
   const CAPTURE_BODIES = window.__BRIDGE_CAPTURE_BODIES !== false;
   const MAX_BODY_SIZE = window.__BRIDGE_MAX_BODY_SIZE || 10000;
 
@@ -46,6 +46,7 @@
   let focused = false;
   let tabId = null;
   let badge = null;
+  let activePort = null;
 
   // Auto-generate label from URL if not set
   function getLabel() {
@@ -105,17 +106,67 @@
       return;
     }
 
+    // If we already found a working port, connect directly
+    if (activePort) {
+      connectToPort(activePort);
+      return;
+    }
+
+    // Scan ports to find the server
+    scanPorts();
+  }
+
+  function scanPorts() {
+    let found = false;
+    let checked = 0;
+
+    for (let i = 0; i < PORT_RANGE; i++) {
+      const port = PORT_START + i;
+      const testWs = new WebSocket(`ws://127.0.0.1:${port}`);
+
+      testWs.onopen = () => {
+        if (!found) {
+          found = true;
+          activePort = port;
+          testWs.close();
+          connectToPort(port);
+        } else {
+          testWs.close();
+        }
+      };
+
+      testWs.onerror = () => {
+        checked++;
+        if (checked >= PORT_RANGE && !found) {
+          scheduleReconnect();
+        }
+      };
+
+      testWs.onclose = () => {
+        if (!found) {
+          checked++;
+          if (checked >= PORT_RANGE) {
+            scheduleReconnect();
+          }
+        }
+      };
+    }
+  }
+
+  function connectToPort(port) {
     try {
-      ws = new WebSocket(WS_URL);
+      ws = new WebSocket(`ws://127.0.0.1:${port}`);
     } catch {
+      activePort = null;
       scheduleReconnect();
       return;
     }
 
     ws.onopen = () => {
       connected = true;
+      activePort = port;
       updateBadge();
-      console.log("[Bridge] Connected to Claude Code");
+      console.log(`[Bridge] Connected to Claude Code on port ${port}`);
 
       // Send initial page info
       sendPageInfo();
@@ -124,6 +175,8 @@
     ws.onclose = () => {
       connected = false;
       updateBadge();
+      // Reset activePort so next reconnect scans again
+      activePort = null;
       scheduleReconnect();
     };
 
